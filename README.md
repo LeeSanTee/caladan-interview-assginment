@@ -19,7 +19,12 @@
       - [Histogram Type Selection: Classic vs Native Histograms](#histogram-type-selection-classic-vs-native-histograms)
       - [Other Design Tradeoffs](#other-design-tradeoffs)
     - [Production Considerations](#production-considerations)
-  - [V. Code Structure](#v-code-structure)
+  - [V. Latency Measurement Analysis](#v-latency-measurement-analysis)
+    - [Observed Behavior](#observed-behavior)
+    - [Sources of Observed Latency](#sources-of-observed-latency)
+    - [Ideas to Improve Latency, Precision, and Consistency](#ideas-to-improve-latency-precision-and-consistency)
+    - [Production-Grade Monitoring Stack](#production-grade-monitoring-stack)
+  - [VI. Code Structure](#vi-code-structure)
 
 # Caladan Work Sample Assignment
 - Use infrastructure-as-code (e.g. Terraform, Pulumi, CloudFormation) to provision
@@ -264,13 +269,181 @@ prometheus.NewHistogramVec(
 - Multiple measurement points across availability zones
 - Custom histogram bucket optimization based on observed latency patterns
 
-**Histogram Bucket Optimization**:
+
+## V. Latency Measurement Analysis
+
+### Observed Behavior
+
+During testing, several interesting patterns emerged in the latency measurements:
+
+**Inconsistent High Percentiles**
+```bash
+Path: /about
+  Average latency: 0.260s
+  p50: 0.310s
+  p90: 0.410s
+  p95: 0.459s
+  p99: inf       # <- Insufficient data points
+
+Path: /home
+  Average latency: 0.250s
+  p50: 0.260s
+  p90: 0.460s
+  p95: inf       # <- Missing high percentile data
+  p99: inf
+```
+
+**Latency Distribution Observations**:
+- Average latency (~250-260ms) suggests consistent baseline performance
+- p50 values align closely with averages, indicating normal distribution
+- p90 values show reasonable consistency (410-460ms range)  
+- p95/p99 showing "inf" indicates histogram bucket limitations
+
+### Sources of Observed Latency
+
+1. **Application Layer Latency (~250ms baseline)**:
+- Go HTTP server processing time
+- Simulated work (random sleep 1-500ms in simple-app)
+- JSON marshaling/unmarshaling overhead
+- HTTP connection establishment and teardown
+
+2. **Network Layer Latency**:
+- VPC internal routing between private subnets
+- AWS network virtualization overhead
+- Instance placement within same AZ vs cross-AZ communication
+
+3. **Infrastructure Latency**:
+- t3.micro instance CPU throttling under load
+- Memory allocation patterns in Go runtime
+- systemd service startup overhead
+
+### Ideas to Improve Latency, Precision, and Consistency
+
+**Immediate Improvements**:
+
+1. **Optimize Histogram Buckets**:
+   ```go
+   // More granular buckets for better percentile accuracy
+   Buckets: []float64{0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.6, 0.8, 1.0}
+   ```
+
+2. **Increase Measurement Frequency**:
+   ```go
+   // Reduce interval from 10s to 5s for more data points
+   ticker := time.NewTicker(5 * time.Second)
+   ```
+
+3. **Connection Pooling**:
+   ```go
+   // Reuse HTTP connections to reduce connection overhead
+   client := &http.Client{
+       Transport: &http.Transport{
+           MaxIdleConns:        10,
+           IdleConnTimeout:     30 * time.Second,
+       },
+   }
+   ```
+
+**Precision Improvements**:
+
+1. **Native Histograms for Exact Percentiles**:
 ```go
-// Optimized buckets for typical network latency
-Buckets: []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0}
+prometheus.NewHistogramVec(
+    prometheus.HistogramOpts{
+        NativeHistogramBucketFactor: 1.05, // Fine-grained buckets
+        NativeHistogramMaxBucketNumber: 200,
+    },
+)
+```
+
+2. **Multiple Measurement Methods**:
+- Add TCP ping alongside HTTP measurements
+- Implement bidirectional latency testing
+- Include DNS resolution time separately
+
+1. **Statistical Aggregation**:
+```python
+# Enhanced percentile calculation with interpolation
+def calculate_percentile(values, percentile):
+    return numpy.percentile(values, percentile, interpolation='linear')
+```
+
+### Production-Grade Monitoring Stack
+
+**Complete Observability Pipeline**:
+
+```terraform
+# Enhanced production setup
+module "monitoring_stack" {
+  source = "./modules/monitoring"
+  
+  # Your existing instances
+  simple_app_ip      = module.simple_app.private_ip
+  metrics_exporter_ip = module.metrics_exporter.private_ip
+  
+  # Add monitoring components
+  deploy_blackbox    = true
+  deploy_prometheus  = true
+  deploy_grafana     = true
+  enable_profiling   = true
+}
+```
+
+**Monitoring Layers**:
+
+1. **Application Layer** (Your current implementation):
+```
+Go app → Prometheus metrics → HTTP latency histograms
+```
+
+2. **Network Layer** (Blackbox Exporter):
+```
+Blackbox → ICMP/TCP/HTTP probes → Network latency metrics
+```
+
+3. **Performance Layer** (Go Profiler):
+```
+pprof → CPU/Memory/Goroutine profiles → Performance bottlenecks
+```
+
+**Comprehensive Latency Analysis**:
+
+```bash
+# Your current metrics
+curl http://metrics-exporter/metrics | grep client_http_request_latency
+
+# + Blackbox network metrics
+curl http://blackbox-exporter:9115/metrics | grep probe_duration
+
+# + Go profiling data
+go tool pprof http://metrics-exporter:6060/debug/pprof/profile
+go tool pprof http://simple-app:6060/debug/pprof/heap
+```
+
+**Production Debugging Workflow**:
+
+1. **High latency detected** → Check Prometheus alerts
+2. **Drill down** → Compare app vs network latency (Blackbox)
+3. **Root cause** → Use Go profiler to identify bottlenecks
+4. **Optimize** → CPU/memory/goroutine analysis
+
+**Example Grafana Dashboard Queries**:
+
+```promql
+# Application latency (your current)
+histogram_quantile(0.95, client_http_request_latency_seconds)
+
+# Network latency (Blackbox)
+probe_duration_seconds{job="blackbox", instance="simple-app"}
+
+# Compare layers
+(
+  histogram_quantile(0.95, client_http_request_latency_seconds) - 
+  probe_duration_seconds{job="blackbox"}
+) # = Pure application processing time
 ```
   
-## V. Code Structure
+## VI. Code Structure
 
 The following shows packer, ansible, terraform, golang app source code and latency calcalation script.
 
