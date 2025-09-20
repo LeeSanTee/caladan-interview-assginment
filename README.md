@@ -114,7 +114,7 @@ $ cd ..
 
 We should now see our AMI in our AWS EC2 Console:
 
-![image](https://github.com/leesantee/caladan-interview-assginment/images/amis.png?raw=true)
+![image](https://github.com/leesantee/caladan-interview-assginment/blob/main/images/amis.png?raw=true)
 
 Now since our AMIs are baked with our software and website files, we will use Terraform to provision 2 EC2 instances from those AMIs:
 
@@ -149,18 +149,18 @@ subnet_id_simple_app = "subnet-034798433cb55fafe"
 ### UI
 On our AWS EC2 console we will see our EC2 instance in a running state:
 
-![image](https://github.com/leesantee/caladan-interview-assginment/images/ec2.png?raw=true)
+![image](https://github.com/leesantee/caladan-interview-assginment/blob/main/images/ec2.png?raw=true)
 
 And when we access our Public IPs, we should see our website:
 In my case, I access `metrics_exporter` with private dns `ip-172-17-27-148.ap-southeast-1.compute.internal` for http_client_requests_latency
 
-![image](https://github.com/leesantee/caladan-interview-assginment/images/web.png?raw=true)
+![image](https://github.com/leesantee/caladan-interview-assginment/blob/main/images/web.png?raw=true)
 Click button `View Metrics` to access Prometheus exposition format metrics.
 
-![image](https://github.com/leesantee/caladan-interview-assginment/images/metrics_exporter.png?raw=true)
+![image](https://github.com/leesantee/caladan-interview-assginment/blob/main/images/metrics_exporter.png?raw=true)
 
 and I access `simple_app`  with private dns `http://ip-172-17-21-68.ap-southeast-1.compute.internal:8081/metrics` for http_server_requests_latency
-![image](https://github.com/leesantee/caladan-interview-assginment/images/simple_app.png?raw=true)
+![image](https://github.com/leesantee/caladan-interview-assginment/blob/main/images/simple_app.png?raw=true)
 
 ### Caluate average latency, median latency, 90th, 95th, 99th percentile latency
 
