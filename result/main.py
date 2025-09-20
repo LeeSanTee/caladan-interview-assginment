@@ -2,7 +2,7 @@ import requests
 import os
 from collections import defaultdict
 
-METRICS_EXPORTER_URL = os.getenv(METRICS_EXPORTER_URL)
+METRICS_EXPORTER_URL = os.getenv("METRICS_EXPORTER_URL")
 
 def parse_metrics(text):
     buckets = defaultdict(list)
