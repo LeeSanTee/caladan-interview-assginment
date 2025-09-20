@@ -1,0 +1,12 @@
+[Unit]
+Description=Go Lang Application
+After=network.target
+
+[Service]
+ExecStart=/opt/go-app/main
+Restart=always
+User=root
+EnvironmentFile=/etc/app.vars
+
+[Install]
+WantedBy=multi-user.target
