@@ -1,0 +1,10 @@
+---
+- name: Reload systemd daemon
+  ansible.builtin.systemd:
+    daemon_reload: yes
+
+- name: Start and enable golang-app
+  ansible.builtin.systemd:
+    name: golang-app
+    state: started
+    enabled: yes

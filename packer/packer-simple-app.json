@@ -1,0 +1,69 @@
+{
+  "variables":{
+    "aws_profile":"np-workload",
+    "aws_region":"ap-southeast-1",
+    "ssh_username":"ubuntu",
+    "instance_type":"t3.micro",
+    "ansible_connection":"local",
+    "ansible_version":"2.18.1"
+  },
+  "builders":[
+    {
+      "type":"amazon-ebs",
+      "profile":"{{user `aws_profile`}}",
+      "region":"{{user `aws_region` }}",
+      "vpc_filter":{
+        "filters":{
+          "tag:Name":"non-prod-workload"
+        }
+      },
+      "subnet_id": "subnet-09c60490340145341",
+      "source_ami": "ami-0933f1385008d33c4",
+      "instance_type":"{{user `instance_type` }}",
+      "ssh_username":"{{user `ssh_username`}}",
+      "ssh_interface": "private_ip",
+      "ami_name":"packer-simple-app-{{timestamp}}",
+      "associate_public_ip_address":false,
+      "tags":{
+        "Name":"packer-simple-app-{{timestamp}}",
+        "Timestamp":"packer-{{timestamp}}",
+        "BaseAmi":"{{ .SourceAMIName }}",
+        "Datestamp":"{{isotime}}",
+        "UUID":"{{uuid}}"
+      }
+    }
+  ],
+  "provisioners":[
+    {
+      "type":"shell",
+      "inline":[
+        "echo start"
+      ]
+    },
+    {
+      "type": "shell",
+      "inline": [
+        "sudo apt-get update",
+        "sudo apt-get install -y software-properties-common",
+        "sudo add-apt-repository --yes --update ppa:ansible/ansible",
+        "sudo apt-get install -y ansible"
+      ],
+      "only": ["amazon-ebs"]
+    },
+    {
+      "type":"ansible-local",
+      "playbook_file":"../ansible/playbook.yml",
+      "playbook_dir":"../ansible",
+      "inventory_groups":[
+        "default"
+      ],
+      "role_paths":[
+        "../ansible/roles/simple-app"
+      ],
+      "extra_arguments":[
+        "--tags simple-app",
+        "--extra-vars \"ansible_connection={{ user `ansible_connection` }}\""
+      ]
+    }
+  ]
+}

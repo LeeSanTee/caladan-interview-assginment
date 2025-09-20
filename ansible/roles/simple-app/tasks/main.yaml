@@ -1,0 +1,33 @@
+---
+- name: Create Go application directory
+  ansible.builtin.file:
+    path: /opt/go-app
+    state: directory
+    mode: '0755'
+    
+- name: Create application environment variables file
+  ansible.builtin.file:
+    path: /etc/app.vars
+    state: touch
+    mode: '0644'
+
+- name: Copy Golang simple application executable
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/roles/simple-app/files/main"
+    dest: /opt/go-app/main
+    mode: '0755'
+
+- name: Create systemd service file for Golang application
+  ansible.builtin.template:
+    src: golang-app.service.j2
+    dest: /etc/systemd/system/golang-app.service
+    mode: '0644'
+  notify:
+    - Reload systemd daemon
+    - Start and enable golang-app
+
+- name: Ensure Golang app is running
+  ansible.builtin.systemd:
+    name: golang-app
+    state: started
+    enabled: yes

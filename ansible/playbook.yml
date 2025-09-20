@@ -1,0 +1,21 @@
+---
+- name: Website Playbook
+  hosts: localhost
+  become: yes
+  vars:
+    application_port: 8080
+    metrics_port: 8081
+    nginx_listen_port: 80
+
+  roles:
+    - role: metrics-exporter
+      tags:
+        - metrics-exporter
+
+    - role: simple-app
+      tags:
+        - simple-app
+
+    - role: web
+      tags:
+        - web 
